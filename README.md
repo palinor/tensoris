@@ -39,5 +39,5 @@ _Tensoris is currently under active development. Setup instructions and build co
 
 ## Contact
 
-Built and maintained by [Aion Feehan]  
+Built and maintained by Palinor.
 Feel free to reach out via GitHub or contribute via pull requests.
