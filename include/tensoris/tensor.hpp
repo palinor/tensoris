@@ -1,27 +1,57 @@
 #pragma once
 
+#include<cassert>
 #include <vector>
 #include <iostream>
 
 
 namespace tensoris {
 	
-	class Tensor {
+	class TensorFloat {
 	public:
 
-		Tensor(size_t rows, size_t cols, float value = 0.0f);
+		TensorFloat(size_t rows, size_t cols, float value = 0.0f);
 
 
 		float &operator()(size_t i, size_t j);
 		const float &operator()(size_t i, size_t j) const;
 
-		size_t rows() const { return m_rows; }
-		size_t cols() const { return m_cols; }
+		size_t rows() const { return rows_; }
+		size_t cols() const { return cols_; }
 		void print();
 
+		std::vector<float>::const_iterator begin() const {
+			return data_.begin();
+		}
+
+		std::vector<float>::const_iterator end() const {
+			return data_.end();
+		}
+
+		void relu_inplace();
+		std::unique_ptr<TensorFloat> grad_;
+
+		void zero_grad() {
+			std::fill(grad_->data_.begin(), grad_->data_.end(), 0.0f);
+		}
+
+		TensorFloat *grad() {
+			if (!grad_) {
+				grad_ = std::make_unique<TensorFloat>(rows_, cols_);
+			}
+			return grad_.get();
+		}
+
+
+
 	private:
-		size_t m_rows;
-		size_t m_cols;
-		std::vector<float> m_data;
+		size_t rows_;
+		size_t cols_;
+		std::vector<float> data_;
 	};
+
+	TensorFloat matmul(const TensorFloat &A, const TensorFloat &B);
+	TensorFloat add(const TensorFloat &A, const TensorFloat &B);
+	TensorFloat relu(const TensorFloat &A);
+
 }
