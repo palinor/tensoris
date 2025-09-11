@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+	  { "label": "CMake: configure Debug",  "type": "cmake", "command": "configure", "preset": "debug" },
+	  { "label": "CMake: configure Release","type": "cmake", "command": "configure", "preset": "release" },
+	  { "label": "CMake: build Debug",      "type": "cmake", "command": "build",     "preset": "debug",   "group": "build" },
+	  { "label": "CMake: build Release",    "type": "cmake", "command": "build",     "preset": "release" }
+	]
+  }
+  
