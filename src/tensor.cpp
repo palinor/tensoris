@@ -1,6 +1,11 @@
 #include "tensoris/tensor.hpp"
 
 namespace tensoris {
+
+	void set_random_seed(unsigned int seed) {
+		srand(seed);
+	}
+
 	TensorFloat::TensorFloat(size_t rows, size_t cols, float value)
 		: rows_(rows), cols_(cols), data_(rows *cols, value) {
 	}
@@ -43,6 +48,7 @@ namespace tensoris {
 				}
 			}
 		}
+		return result;
 	}
 
 	TensorFloat relu(const TensorFloat &A) {
@@ -75,5 +81,18 @@ namespace tensoris {
 		return result;
 	}
 
-	
+	TensorFloat tensor_float_random_uniform(size_t rows, size_t cols, float min_value, float max_value) {
+		assert(min_value < max_value);
+		if (min_value >= max_value) {
+			throw std::invalid_argument("tensor_float_random_uniform: min_value >= max_value");
+		}
+		TensorFloat result(rows, cols);
+		for (size_t i = 0; i < rows; ++i) {
+			for (size_t j = 0; j < cols; ++j) {
+				float random_float = rand() / (float)RAND_MAX;
+				result(i, j) = min_value + (max_value - min_value) * random_float;
+			}
+		}
+		return result;
+	}
 }

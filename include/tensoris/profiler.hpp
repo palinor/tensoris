@@ -15,29 +15,30 @@ namespace tensoris_profile {
 	void init_config(const Config &config);
 	void shutdown();
 	void enable(bool on);
-	bool enabled() noexcept;
+	bool is_enabled() noexcept;
 
 	using NameId = uint32_t;
 
 	NameId intern(std::string_view name) noexcept;
-	uint64_t nanoseconds_now() noexcept;
-	uint32_t time_id() noexcept; 
+	uint64_t now_in_nanoseconds() noexcept;
+	uint32_t thread_id() noexcept; 
 
-	void begin(NameId id) noexcept;
-	void end(NameId id) noexcept;
+	void begin_scope(NameId id) noexcept;
+	void end_scope(NameId id) noexcept;
 
 	struct Scope {
-		NameId id;
+		NameId scope_name;
 		uint64_t start_ns;
-		explicit Scope(NameId id_) noexcept;
+		explicit Scope(NameId scope_name) noexcept;
+		~Scope() noexcept;
 	};
 
 	#define TPROF_SCOPE(name) ::tensoris_profile::Scope _tprof_scope_##__LINE__(::tensoris_profile::intern(name))
 	#define TPROF_BEGIN(name) ::tensoris_profile::begin(::tensoris_profile::intern(name))
 	#define TPROF_END(name) ::tensoris_profile::end(::tensoris_profile::intern(name))
 
-	void counter(NameId id, int64_t value) noexcept;
-	void mark(NameId id) noexcept;
+	void event_counter(NameId id, int64_t value) noexcept;
+	void event_mark(NameId id) noexcept;
 
 	void flush_thread() noexcept;
 	void flush_all();

@@ -6,7 +6,7 @@
 #include <chrono>
 
 namespace tensoris_profile {
-	enum class Phase: uint8_t {
+	enum class Phase : uint8_t {
 		Begin,
 		End,
 		Counter,
@@ -14,7 +14,7 @@ namespace tensoris_profile {
 	};
 
 	struct Event {
-		uint64_t timestamp;
+		uint64_t timestamp_in_nanoseconds;
 		uint32_t thread_id;
 		tensoris_profile::NameId id;
 		Phase phase;
@@ -22,7 +22,7 @@ namespace tensoris_profile {
 	};
 
 	namespace {
-		std::atomic<bool> g_enabled{false};
+		std::atomic<bool> g_enabled{ false };
 		Config g_config;
 		std::mutex g_mutex;
 
@@ -36,7 +36,7 @@ namespace tensoris_profile {
 
 		uint64_t monotonic_nanoseconds() noexcept {
 			using clock = std::chrono::steady_clock;
-			return uint64_t (
+			return uint64_t(
 				std::chrono::duration_cast<std::chrono::nanoseconds>(
 					clock::now().time_since_epoch()
 				).count()
@@ -45,20 +45,20 @@ namespace tensoris_profile {
 
 		uint32_t logical_tid() noexcept {
 			static thread_local uint32_t tid = [] {
-				static std::atomic<uint32_t> next{1};
+				static std::atomic<uint32_t> next{ 1 };
 				return next.fetch_add(1, std::memory_order_relaxed);
-			}();
+				}();
 			return tid;
 		};
 
 		struct Recorder {
 			Event *event_buffer = nullptr;
 			size_t capacity;
-			std::atomic<size_t> head{0};
+			std::atomic<size_t> head{ 0 };
 			size_t tail = 0;
 			bool dropped_events = false;
 
-			void write(const Event& e) noexcept {
+			void write(const Event &e) noexcept {
 				if (!g_enabled.load(std::memory_order_relaxed)) return;
 				auto h = head.load(std::memory_order_relaxed);
 				auto next = h + 1;
@@ -71,10 +71,10 @@ namespace tensoris_profile {
 			}
 		};
 		thread_local Recorder recorder;
-		std::vector<Recorder*> g_all_recorders;
+		std::vector<Recorder *> g_all_recorders;
 	}
 
-	void init_config(const Config& config) {
+	void init_config(const Config &config) {
 		std::lock_guard<std::mutex> lock(g_mutex);
 		g_config = config;
 		epoch_nanoseconds = monotonic_nanoseconds();
@@ -90,7 +90,7 @@ namespace tensoris_profile {
 		g_enabled.store(on, std::memory_order_relaxed);
 	}
 
-	bool enabled() noexcept {
+	bool is_enabled() noexcept {
 		return g_enabled.load(std::memory_order_relaxed);
 	}
 
@@ -106,7 +106,8 @@ namespace tensoris_profile {
 			return it->second;
 		}
 		NameId id = (NameId)g_names.names.size();
-		g_names.idx.emplace(g_names.names.back(), id);
+		g_names.names.emplace_back(name);
+		g_names.idx.emplace(std::make_pair(g_names.names.back(), id));
 		fast[name] = id;
 		return id;
 	}
@@ -115,9 +116,116 @@ namespace tensoris_profile {
 		return monotonic_nanoseconds();
 	}
 
-	uint32_t t_id() noexcept {
+	uint32_t thread_id() noexcept {
 		return logical_tid();
 	}
 
-	Scope::Scope(NameId id) noexcept : id(id)
+	Scope::Scope(NameId scope_name) noexcept :
+		scope_name(scope_name),
+		start_ns(now_in_nanoseconds())
+	{
+		begin_scope(scope_name);
+	}
+	Scope::~Scope() noexcept {
+		end_scope(scope_name);
+	}
+
+	void begin_scope(NameId scope_name) noexcept {
+		if (!is_enabled()) {
+			return;
+		}
+		recorder.write(Event{ now_in_nanoseconds(), thread_id(), scope_name, Phase::Begin, 0 });
+	}
+
+	void end_scope(NameId scope_name) noexcept {
+		if (!is_enabled()) {
+			return;
+		}
+		recorder.write(Event{ now_in_nanoseconds(), thread_id(), scope_name, Phase::End, 0 });
+	}
+
+	void event_counter(NameId scope_name, int64_t v) noexcept {
+		if (!is_enabled()) {
+			return;
+		}
+		recorder.write(Event{ now_in_nanoseconds(), thread_id(), scope_name, Phase::Counter, v });
+	}
+
+	void event_mark(NameId scope_name) noexcept {
+		if (is_enabled()) {
+			return;
+		}
+		recorder.write(Event{ now_in_nanoseconds(), thread_id(), scope_name, Phase::Mark, 0 });
+	}
+
+	void flush_thread() noexcept {}
+
+	static void write_trace(
+		std::ostream &os,
+		const std::vector<Event> &events
+	) {
+		os << "{\"traceEvents\":[";
+		bool first = true;
+		auto emit = [&](const char *name, const char phase, const Event &event) {
+			if (!first) {
+				os << ",";
+			}
+			first = false;
+			double timestamp_in_microseconds = event.timestamp_in_nanoseconds / 1000.0;
+			os << "{\"name\":\"" << name << "\",\"ph\":\"" << phase
+				<< "\",\"pid\":1,\"tid\":" << event.thread_id << ",\"ts\":" << timestamp_in_microseconds;
+			if (event.phase == Phase::Counter) {
+				os << ",\"args\":{\"value\":" << event.value << "}";
+			}
+			os << "}";
+		};
+
+		std::vector<const char *>names;
+		{
+			std::lock_guard<std::mutex> lock(g_names.mutex);
+			names.reserve(g_names.names.size());
+			for (auto &s : g_names.names) {
+				names.push_back(s.c_str());
+			}
+		}
+
+		for (auto &event : events) {
+			const char *name = (event.id < names.size()) ? names[event.id] : "unknown";
+			switch (event.phase) {
+			case Phase::Begin: {
+				emit(name, 'B', event);
+			} break;
+			case Phase::End: {
+				emit(name, 'E', event);
+			} break;
+			case Phase::Counter: {
+				emit(name, 'C', event);
+			} break;
+			case Phase::Mark: {
+				emit(name, 'I', event);
+			} break;
+			}
+		}
+		os << "]}";
+	}
+
+	void flush_all() {
+		std::vector<Event> all_events;
+		{
+			std::lock_guard<std::mutex> lock(g_mutex);
+			for (auto *recorder : g_all_recorders) {
+				auto head = recorder->head.load(std::memory_order_relaxed);
+				for (size_t i = recorder->tail; i < head; ++i) {
+					all_events.push_back(recorder->event_buffer[i % recorder->capacity]);
+				}
+				recorder->tail = head;
+			}
+		}
+		std::ofstream file(g_config.logfile_path, std::ios::out | std::ios::trunc);
+		write_trace(file, all_events);
+	}
+
+	void shutdown() {
+		flush_all();
+	}
 }

@@ -12,3 +12,8 @@ file(GLOB_RECURSE HEADERS CONFIGURE_DEPENDS src/*.hpp)
 add_executable(tensoris_demo ${SOURCES} ${HEADERS} "src/tensor.cpp")
 
 source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
+
+option(TENSORIS_ENABLE_PROFILER "Enable built-in profiler" ON)
+if (TENSORIS_ENABLE_PROFILER)
+	target_compile_definitions(tensoris_demo PUBLIC TENSORIS_ENABLE_PROFILER=1)
+endif()

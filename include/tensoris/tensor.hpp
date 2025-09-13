@@ -1,11 +1,14 @@
 #pragma once
 
 #include<cassert>
+#include<cmath>
 #include <vector>
 #include <iostream>
 
 
 namespace tensoris {
+
+	void set_random_seed(unsigned int seed);
 	
 	class TensorFloat {
 	public:
@@ -53,5 +56,7 @@ namespace tensoris {
 	TensorFloat matmul(const TensorFloat &A, const TensorFloat &B);
 	TensorFloat add(const TensorFloat &A, const TensorFloat &B);
 	TensorFloat relu(const TensorFloat &A);
+
+	TensorFloat tensor_float_random_uniform(size_t rows, size_t cols, float min_value = 0.0f, float max_value = 1.0f);
 
 }
